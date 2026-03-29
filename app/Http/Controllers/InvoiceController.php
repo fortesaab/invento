@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
@@ -21,58 +22,74 @@ class InvoiceController extends Controller
         return view('invoices.index', compact('invoices'));
     }
 
-    public function create()
-    {
-        $customers = Customer::orderBy('name')->get();
-        $products = Product::orderBy('name')->get();
+   public function create(Request $request)
+{
+    /** @var User|null $user */
+    $user = Auth::user();
 
-        return view('invoices.create', compact('customers', 'products'));
+    if (!$user || (!$user->isAdmin() && !$user->isStaff())) {
+        abort(403);
     }
+
+    $customers = Customer::orderBy('name')->get();
+    $products = Product::orderBy('name')->get();
+    $selectedProductId = $request->product_id;
+
+    return view('invoices.create', compact('customers', 'products', 'selectedProductId'));
+}
 
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'invoice_date' => 'required|date',
-            'status' => 'required|in:pending,paid,cancelled',
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:1',
+{
+    /** @var User|null $user */
+    $user = Auth::user();
+
+    if (!$user || (!$user->isAdmin() && !$user->isStaff())) {
+        abort(403);
+    }
+
+    $validated = $request->validate([
+        'customer_id' => 'required|exists:customers,id',
+        'invoice_date' => 'required|date',
+        'status' => 'required|in:pending,paid,cancelled',
+        'product_id' => 'required|exists:products,id',
+        'quantity' => 'required|integer|min:1',
+    ]);
+
+    DB::transaction(function () use ($validated, $user) {
+        $product = Product::findOrFail($validated['product_id']);
+
+        if ($product->stock_quantity < $validated['quantity']) {
+            abort(422, 'Not enough stock available for this product.');
+        }
+
+        $unitPrice = $product->price;
+        $subtotal = $unitPrice * $validated['quantity'];
+
+        $invoice = Invoice::create([
+            'customer_id' => $validated['customer_id'],
+            'user_id' => $user->id,
+            'invoice_number' => 'INV-' . now()->format('YmdHis'),
+            'invoice_date' => $validated['invoice_date'],
+            'total_amount' => $subtotal,
+            'status' => $validated['status'],
         ]);
 
-        DB::transaction(function () use ($validated) {
-            $product = Product::findOrFail($validated['product_id']);
+        InvoiceItem::create([
+            'invoice_id' => $invoice->id,
+            'product_id' => $product->id,
+            'quantity' => $validated['quantity'],
+            'unit_price' => $unitPrice,
+            'subtotal' => $subtotal,
+        ]);
 
-            if ($product->stock_quantity < $validated['quantity']) {
-                abort(422, 'Not enough stock available for this product.');
-            }
+        $product->decrement('stock_quantity', $validated['quantity']);
+    });
 
-            $unitPrice = $product->price;
-            $subtotal = $unitPrice * $validated['quantity'];
+    return redirect()
+        ->route('invoices.index')
+        ->with('success', 'Invoice created successfully.');
+}
 
-            $invoice = Invoice::create([
-                'customer_id' => $validated['customer_id'],
-                'user_id' => Auth::id(),
-                'invoice_number' => 'INV-' . now()->format('YmdHis'),
-                'invoice_date' => $validated['invoice_date'],
-                'total_amount' => $subtotal,
-                'status' => $validated['status'],
-            ]);
-
-            InvoiceItem::create([
-                'invoice_id' => $invoice->id,
-                'product_id' => $product->id,
-                'quantity' => $validated['quantity'],
-                'unit_price' => $unitPrice,
-                'subtotal' => $subtotal,
-            ]);
-
-            $product->decrement('stock_quantity', $validated['quantity']);
-        });
-
-        return redirect()
-            ->route('invoices.index')
-            ->with('success', 'Invoice created successfully.');
-    }
 
     public function show(Invoice $invoice)
     {

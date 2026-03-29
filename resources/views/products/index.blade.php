@@ -82,19 +82,28 @@
                                     </td>
                                     <td class="px-6 py-4">
                                         <div class="flex items-center justify-end gap-3">
+                                            @if (auth()->user()->isAdmin() || auth()->user()->isStaff())
+                                                <x-ui.button :href="route('invoices.create', ['product_id' => $product->id])" variant="primary">
+                                                    Sell
+                                                </x-ui.button>
+                                            @endif
+
                                             <x-ui.button :href="route('products.edit', $product)" variant="secondary">
                                                 Edit
                                             </x-ui.button>
 
-                                            <form action="{{ route('products.destroy', $product) }}" method="POST"
-                                                onsubmit="return confirm('Are you sure you want to delete this product?')">
-                                                @csrf
-                                                @method('DELETE')
+                                            @if (auth()->user()->isAdmin())
+                                                <form action="{{ route('products.destroy', $product) }}" method="POST"
+                                                    onsubmit="return confirm('Are you sure you want to delete this product?')">
+                                                    @csrf
+                                                    @method('DELETE')
 
-                                                <x-ui.button type="submit" variant="danger">
-                                                    Delete
-                                                </x-ui.button>
-                                            </form>
+                                                    <x-ui.button type="submit" variant="danger">
+                                                        Delete
+                                                    </x-ui.button>
+                                                </form>
+                                            @endif
+
                                         </div>
                                     </td>
                                 </tr>

@@ -6,6 +6,10 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use App\Models\User;
+
+
 
 class ProductController extends Controller
 {
@@ -77,12 +81,22 @@ class ProductController extends Controller
             ->with('success', 'Product updated successfully.');
     }
 
-    public function destroy(Product $product)
+        public function destroy(Product $product)
     {
+        /** @var User|null $user */
+$user = Auth::user();
+
+
+        if (!$user || !$user->isAdmin()) {
+            abort(403);
+        }
+
         $product->delete();
 
         return redirect()
             ->route('products.index')
             ->with('success', 'Product deleted successfully.');
     }
+
+
 }

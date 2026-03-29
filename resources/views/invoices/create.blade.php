@@ -83,10 +83,11 @@
                             class="block w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-100">
                             <option value="">Select product</option>
                             @foreach ($products as $product)
-                                <option value="{{ $product->id }}" @selected(old('product_id') == $product->id)>
+                                <option value="{{ $product->id }}" @selected(old('product_id', $selectedProductId ?? '') == $product->id)>
                                     {{ $product->name }} (Stock: {{ $product->stock_quantity }})
                                 </option>
                             @endforeach
+
                         </select>
                         @error('product_id')
                             <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
